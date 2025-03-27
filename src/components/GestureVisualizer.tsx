@@ -178,6 +178,25 @@ export const GestureVisualizer: React.FC<GestureVisualizerProps> = ({
       ctx.fill();
     }
     
+    // Draw orientation label
+    const wristX = handPose.landmarks[0].x * CANVAS_WIDTH;
+    const wristY = handPose.landmarks[0].y * CANVAS_HEIGHT;
+    
+    ctx.font = '16px Arial';
+    ctx.fillStyle = 'white';
+    ctx.textAlign = 'center';
+    
+    const handLabel = `${handPose.handedness.toUpperCase()} HAND (Palm ${handPose.handedness === 'left' ? 'away from' : 'facing'} camera)`;
+    
+    // Add background for better readability
+    const textWidth = ctx.measureText(handLabel).width;
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+    ctx.fillRect(wristX - (textWidth / 2) - 5, wristY + 30, textWidth + 10, 24);
+    
+    // Draw text
+    ctx.fillStyle = 'white';
+    ctx.fillText(handLabel, wristX, wristY + 48);
+    
     ctx.restore();
   };
   
@@ -204,6 +223,13 @@ export const GestureVisualizer: React.FC<GestureVisualizerProps> = ({
             {detectedGesture}
           </div>
         )}
+
+        <div className="orientation-guide">
+          <div className="guide-box">
+            <p>In the camera view, your left hand appears on the right side of the screen.</p>
+            <p>Make sure your palm is facing the camera for proper gesture detection.</p>
+          </div>
+        </div>
         
         {showStats && (
           <div className="stats-panel">
@@ -264,6 +290,27 @@ export const GestureVisualizer: React.FC<GestureVisualizerProps> = ({
           box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
           animation: pulse 1.5s infinite;
           max-width: 80%;
+        }
+        
+        .orientation-guide {
+          position: absolute;
+          bottom: 10px;
+          left: 10px;
+          right: 10px;
+          z-index: 5;
+        }
+        
+        .guide-box {
+          background-color: rgba(0, 0, 0, 0.6);
+          color: white;
+          padding: 8px 12px;
+          border-radius: 6px;
+          font-size: 14px;
+          text-align: center;
+        }
+        
+        .guide-box p {
+          margin: 5px 0;
         }
         
         @keyframes pulse {

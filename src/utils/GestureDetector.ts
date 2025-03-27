@@ -35,12 +35,20 @@ export class GestureDetector {
   // Gesture debouncing to avoid flickering
   private lastDetectedGesture: string | null = null;
   private lastGestureTime: number = 0;
-  private gestureCooldownMs: number = 1000; // Cooldown between different gesture detections
+  private gestureCooldownMs: number = 300; // Reduced cooldown between different gesture detections
+  
+  // Motion tracking for dynamic gestures
+  private motionTrackingEnabled: boolean = false;
+  private motionTrackingStartTime: number = 0;
+  private motionPositionHistory: Point3D[] = [];
+  private motionSamplingRate: number = 100; // ms between position samples
+  private lastMotionSampleTime: number = 0;
+  private activeMotionPattern: MotionPattern | null = null;
   
   /**
    * Initialize the hand pose detector
    */
-  public async initialize(): Promise<boolean> {
+  public async initialize(enableMotionTracking: boolean = true): Promise<boolean> {
     try {
       // Ensure TensorFlow is properly initialized
       await TensorFlowUtils.setupTensorFlow();
@@ -50,6 +58,8 @@ export class GestureDetector {
         handPoseDetection.SupportedModels.MediaPipeHands,
         this.detectorConfig
       );
+      
+      this.motionTrackingEnabled = enableMotionTracking;
       
       console.log('Hand pose detector initialized successfully');
       return true;
@@ -134,6 +144,13 @@ export class GestureDetector {
   }
   
   /**
+   * Set callback for when a motion pattern is detected
+   */
+  public onMotionPatternDetected(callback: (pattern: MotionPattern) => void): void {
+    // We can implement this if needed to notify about detected motion patterns
+  }
+  
+  /**
    * Get the current FPS of the detection loop
    */
   public getFps(): number {
@@ -145,6 +162,13 @@ export class GestureDetector {
    */
   public getLastHandPose(): HandPose | null {
     return this.lastHandPose;
+  }
+  
+  /**
+   * Get the current active motion pattern (if any)
+   */
+  public getActiveMotionPattern(): MotionPattern | null {
+    return this.activeMotionPattern;
   }
   
   /**
@@ -184,6 +208,11 @@ export class GestureDetector {
           this.handPoseHistory.shift();
         }
         
+        // Track motion if enabled
+        if (this.motionTrackingEnabled) {
+          this.trackHandMotion(handPose);
+        }
+        
         // Trigger callback
         if (this.onHandPoseDetectedCallback) {
           this.onHandPoseDetectedCallback(handPose);
@@ -194,6 +223,11 @@ export class GestureDetector {
         
         // Check for sequence matches
         this.detectSequences();
+      } else {
+        // If no hand detected for a while, reset motion tracking
+        if (this.motionTrackingEnabled && (now - this.lastMotionSampleTime) > 1000) {
+          this.resetMotionTracking();
+        }
       }
     } catch (error) {
       console.error('Error in detection loop:', error);
@@ -203,6 +237,272 @@ export class GestureDetector {
     if (this.isRunning) {
       requestAnimationFrame(() => this.detectionLoop());
     }
+  }
+  
+  /**
+   * Track hand motion over time by sampling hand position
+   */
+  private trackHandMotion(handPose: HandPose): void {
+    const now = Date.now();
+    
+    // Sample position at regular intervals
+    if ((now - this.lastMotionSampleTime) >= this.motionSamplingRate) {
+      // Use wrist position (landmark 0) as reference point for tracking movement
+      const wristPosition = handPose.landmarks[0];
+      
+      // Add to motion history
+      this.motionPositionHistory.push(wristPosition);
+      
+      // Keep only the last 30 positions (3 seconds at 100ms sampling)
+      if (this.motionPositionHistory.length > 30) {
+        this.motionPositionHistory.shift();
+      }
+      
+      this.lastMotionSampleTime = now;
+      
+      // Detect motion patterns every 10 samples (roughly once per second)
+      if (this.motionPositionHistory.length % 10 === 0 && this.motionPositionHistory.length >= 10) {
+        this.detectMotionPattern();
+      }
+    }
+  }
+  
+  /**
+   * Reset motion tracking data
+   */
+  private resetMotionTracking(): void {
+    this.motionPositionHistory = [];
+    this.motionTrackingStartTime = 0;
+    this.activeMotionPattern = null;
+  }
+  
+  /**
+   * Detect common motion patterns from position history
+   */
+  private detectMotionPattern(): void {
+    // Need at least 10 points to detect a pattern
+    if (this.motionPositionHistory.length < 10) {
+      return;
+    }
+
+    // Analyze the motion path to detect patterns
+    // We'll check for several common patterns:
+    
+    // 1. Circle detection
+    const isCircle = this.detectCircularMotion();
+    if (isCircle.detected) {
+      this.activeMotionPattern = isCircle.clockwise ? 
+        MotionPattern.CIRCLE_CLOCKWISE : MotionPattern.CIRCLE_COUNTERCLOCKWISE;
+      console.log(`Detected circular motion: ${this.activeMotionPattern}`);
+      return;
+    }
+    
+    // 2. Vertical motion (up-down or down-up)
+    const isVertical = this.detectVerticalMotion();
+    if (isVertical) {
+      this.activeMotionPattern = MotionPattern.VERTICAL_UP_DOWN;
+      console.log('Detected vertical motion');
+      return;
+    }
+    
+    // 3. Horizontal motion (left-right or right-left)
+    const isHorizontal = this.detectHorizontalMotion();
+    if (isHorizontal) {
+      this.activeMotionPattern = MotionPattern.HORIZONTAL_LEFT_RIGHT;
+      console.log('Detected horizontal motion');
+      return;
+    }
+    
+    // 4. Forward thrust motion (toward camera)
+    const isForwardThrust = this.detectForwardMotion();
+    if (isForwardThrust) {
+      this.activeMotionPattern = MotionPattern.FORWARD_THRUST;
+      console.log('Detected forward thrust motion');
+      return;
+    }
+
+    // 5. Wave motion (side to side repeatedly)
+    const isWave = this.detectWaveMotion();
+    if (isWave) {
+      this.activeMotionPattern = MotionPattern.WAVE;
+      console.log('Detected wave motion');
+      return;
+    }
+    
+    // If we get here, no pattern was detected
+    this.activeMotionPattern = null;
+  }
+  
+  /**
+   * Detect circular motion pattern
+   * Returns whether a circle was detected and if it was clockwise or counterclockwise
+   */
+  private detectCircularMotion(): { detected: boolean; clockwise: boolean } {
+    // This is a simplified circle detection algorithm
+    // A full implementation would use more sophisticated pattern matching
+    
+    const points = this.motionPositionHistory;
+    
+    // Calculate centroid of the path
+    let sumX = 0, sumY = 0;
+    for (const point of points) {
+      sumX += point.x;
+      sumY += point.y;
+    }
+    const centroidX = sumX / points.length;
+    const centroidY = sumY / points.length;
+    
+    // Check if points form a rough circle by measuring distance from centroid
+    let totalDistanceVariance = 0;
+    const distances: number[] = [];
+    
+    for (const point of points) {
+      const dx = point.x - centroidX;
+      const dy = point.y - centroidY;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      distances.push(distance);
+    }
+    
+    // Calculate mean distance
+    const meanDistance = distances.reduce((sum, d) => sum + d, 0) / distances.length;
+    
+    // Check variance of distance (should be low for a circle)
+    for (const distance of distances) {
+      totalDistanceVariance += Math.pow(distance - meanDistance, 2);
+    }
+    const distanceVariance = totalDistanceVariance / distances.length;
+    
+    // Calculate direction (clockwise vs counterclockwise)
+    let sumCrossProduct = 0;
+    for (let i = 0; i < points.length - 1; i++) {
+      const p1 = points[i];
+      const p2 = points[i + 1];
+      const v1x = p1.x - centroidX;
+      const v1y = p1.y - centroidY;
+      const v2x = p2.x - centroidX;
+      const v2y = p2.y - centroidY;
+      sumCrossProduct += (v1x * v2y - v1y * v2x);
+    }
+    
+    // Ratio of variance to mean distance (lower means more circular)
+    const varianceRatio = distanceVariance / meanDistance;
+    
+    // Thresholds for circle detection (may need tuning)
+    const isCircular = varianceRatio < 0.15 && points.length >= 15;
+    
+    return {
+      detected: isCircular,
+      clockwise: sumCrossProduct < 0 // Negative cross product means clockwise
+    };
+  }
+  
+  /**
+   * Detect vertical motion (up-down or down-up)
+   */
+  private detectVerticalMotion(): boolean {
+    const points = this.motionPositionHistory;
+    let verticalDistance = 0;
+    let horizontalDistance = 0;
+    
+    // Look at the overall path from start to end
+    if (points.length >= 10) {
+      const startPoint = points[0];
+      const endPoint = points[points.length - 1];
+      
+      // Calculate total vertical and horizontal movement
+      for (let i = 1; i < points.length; i++) {
+        const p1 = points[i - 1];
+        const p2 = points[i];
+        verticalDistance += Math.abs(p2.y - p1.y);
+        horizontalDistance += Math.abs(p2.x - p1.x);
+      }
+      
+      // Check if vertical movement dominates (at least 2x horizontal)
+      return verticalDistance > horizontalDistance * 2 && verticalDistance > 0.15;
+    }
+    
+    return false;
+  }
+  
+  /**
+   * Detect horizontal motion (left-right or right-left)
+   */
+  private detectHorizontalMotion(): boolean {
+    const points = this.motionPositionHistory;
+    let verticalDistance = 0;
+    let horizontalDistance = 0;
+    
+    // Look at the overall path from start to end
+    if (points.length >= 10) {
+      const startPoint = points[0];
+      const endPoint = points[points.length - 1];
+      
+      // Calculate total vertical and horizontal movement
+      for (let i = 1; i < points.length; i++) {
+        const p1 = points[i - 1];
+        const p2 = points[i];
+        verticalDistance += Math.abs(p2.y - p1.y);
+        horizontalDistance += Math.abs(p2.x - p1.x);
+      }
+      
+      // Check if horizontal movement dominates (at least 2x vertical)
+      return horizontalDistance > verticalDistance * 2 && horizontalDistance > 0.15;
+    }
+    
+    return false;
+  }
+  
+  /**
+   * Detect forward thrust motion (toward camera)
+   */
+  private detectForwardMotion(): boolean {
+    const points = this.motionPositionHistory;
+    
+    // Need z-coordinate for depth perception
+    if (points.length >= 10 && points[0].z !== undefined) {
+      // Calculate depth movement (z-axis change)
+      let depthChange = 0;
+      
+      for (let i = 1; i < points.length; i++) {
+        depthChange += (points[i].z - points[i - 1].z);
+      }
+      
+      // Significant forward motion (negative z change in mediapipe coordinates)
+      return depthChange < -0.15;
+    }
+    
+    return false;
+  }
+  
+  /**
+   * Detect wave motion (side to side repeatedly)
+   */
+  private detectWaveMotion(): boolean {
+    const points = this.motionPositionHistory;
+    
+    if (points.length >= 15) {
+      // Count direction changes in x-coordinate
+      let directionChanges = 0;
+      let lastDirection = 0;
+      
+      for (let i = 1; i < points.length; i++) {
+        const dx = points[i].x - points[i - 1].x;
+        const direction = Math.sign(dx);
+        
+        if (lastDirection !== 0 && direction !== 0 && direction !== lastDirection) {
+          directionChanges++;
+        }
+        
+        if (direction !== 0) {
+          lastDirection = direction;
+        }
+      }
+      
+      // At least 3 direction changes indicates a wave pattern
+      return directionChanges >= 3;
+    }
+    
+    return false;
   }
   
   /**
@@ -255,13 +555,24 @@ export class GestureDetector {
       const isSameGesture = this.lastDetectedGesture === detectedGesture.id;
       const isCooldownElapsed = (now - this.lastGestureTime) > this.gestureCooldownMs;
       
-      // Only trigger callback if it's the same gesture (no cooldown)
-      // or it's a different gesture and the cooldown has elapsed
-      if (isSameGesture || isCooldownElapsed) {
+      // Always allow the same gesture to repeat
+      // Only apply cooldown when switching between different gestures
+      const shouldTriggerCallback = isSameGesture || 
+                                   (this.lastDetectedGesture !== detectedGesture.id && isCooldownElapsed);
+      
+      if (shouldTriggerCallback) {
+        console.log(`Detected gesture: ${detectedGesture.name} (${Math.round(detectedGesture.score * 100)}%)`);
+        
         this.lastDetectedGesture = detectedGesture.id;
         this.lastGestureTime = now;
         
         this.onGestureDetectedCallback(detectedGesture);
+      }
+    } else {
+      // Reset the last detected gesture if no gesture is detected for a while
+      const noGestureCooldown = 500; // ms
+      if (this.lastDetectedGesture && (now - this.lastGestureTime) > noGestureCooldown) {
+        this.lastDetectedGesture = null;
       }
     }
   }
@@ -288,12 +599,27 @@ export class GestureDetector {
   }
   
   /**
-   * Check if a hand pose matches a gesture definition
+   * Match the current hand pose against a gesture definition
    */
   private matchGesture(pose: HandPose, gesture: Gesture): { isMatch: boolean; score: number } {
-    // This is a simplified matching algorithm
-    // A real implementation would use more sophisticated pattern matching
+    // Check if handedness matches the gesture requirement
+    if (gesture.handRequired !== 'any' && gesture.handRequired !== pose.handedness) {
+      return { isMatch: false, score: 0 };
+    }
     
+    // First check if this is a motion-based gesture
+    if (gesture.motionPattern && gesture.motionPattern !== MotionPattern.NONE) {
+      // For motion-based gestures, check if the detected motion pattern matches
+      if (this.activeMotionPattern === gesture.motionPattern) {
+        // Motion pattern matches, return high confidence score
+        return { isMatch: true, score: 0.9 };
+      } else {
+        // Motion pattern doesn't match
+        return { isMatch: false, score: 0 };
+      }
+    }
+    
+    // For static gestures, continue with finger position matching
     if (!pose.landmarks || pose.landmarks.length < 21) {
       return { isMatch: false, score: 0 };
     }

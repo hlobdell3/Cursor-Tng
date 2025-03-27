@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { GestureDetector } from '../utils/GestureDetector';
 import { GestureVisualizer } from './GestureVisualizer';
-import { Gesture, SpellDiscipline } from '../types/gesture';
+import { Gesture, SpellDiscipline, MotionPattern } from '../types/gesture';
 import GestureGuide from './GestureGuide';
 
 export const GestureDetectionDemo: React.FC = () => {
@@ -11,44 +11,54 @@ export const GestureDetectionDemo: React.FC = () => {
   const [showIdealPositions, setShowIdealPositions] = useState<boolean>(false);
   const [testGestures] = useState<Gesture[]>([
     {
-      id: 'open_palm',
-      name: 'Open Palm',
+      id: 'circle_clockwise',
+      name: 'Circular Motion (clockwise)',
       disciplineKey: SpellDiscipline.FIRE,
-      fingerPositions: [0.8, 0.8, 0.8, 0.8, 0.8], // All fingers extended
+      fingerPositions: [0.8, 0.8, 0.8, 0.8, 0.8], // All fingers extended - basic open palm
       threshold: 0.5,
-      description: 'Open palm with all fingers extended'
+      description: 'Draw a clockwise circle with your hand',
+      motionPattern: MotionPattern.CIRCLE_CLOCKWISE,
+      handRequired: 'right'
     },
     {
-      id: 'point',
-      name: 'Pointing',
+      id: 'vertical_motion',
+      name: 'Vertical Motion',
       disciplineKey: SpellDiscipline.AIR,
-      fingerPositions: [0.3, 0.9, 0.2, 0.2, 0.2], // Index finger extended
+      fingerPositions: [0.3, 0.9, 0.2, 0.2, 0.2], // Index finger extended - for visual reference
       threshold: 0.5,
-      description: 'Point with index finger'
+      description: 'Move your hand up and down vertically',
+      motionPattern: MotionPattern.VERTICAL_UP_DOWN,
+      handRequired: 'any'
     },
     {
-      id: 'fist',
-      name: 'Closed Fist',
+      id: 'horizontal_motion',
+      name: 'Horizontal Motion',
       disciplineKey: SpellDiscipline.EARTH,
-      fingerPositions: [0.1, 0.1, 0.1, 0.1, 0.1], // All fingers closed
+      fingerPositions: [0.1, 0.1, 0.1, 0.1, 0.1], // Closed fist - for visual reference
       threshold: 0.5,
-      description: 'Closed fist with all fingers curled in'
+      description: 'Move your hand side to side horizontally',
+      motionPattern: MotionPattern.HORIZONTAL_LEFT_RIGHT,
+      handRequired: 'any'
     },
     {
-      id: 'v_sign',
-      name: 'Victory Sign',
+      id: 'wave_motion',
+      name: 'Wave Motion',
       disciplineKey: SpellDiscipline.WATER,
-      fingerPositions: [0.3, 0.9, 0.9, 0.2, 0.2], // Index and middle extended
+      fingerPositions: [0.3, 0.9, 0.9, 0.2, 0.2], // V-sign - for visual reference
       threshold: 0.5,
-      description: 'V-sign with index and middle fingers'
+      description: 'Wave your hand side to side several times',
+      motionPattern: MotionPattern.WAVE,
+      handRequired: 'any'
     },
     {
-      id: 'rock_on',
-      name: 'Rock On',
+      id: 'forward_thrust',
+      name: 'Forward Thrust',
       disciplineKey: SpellDiscipline.LIGHTNING,
-      fingerPositions: [0.2, 0.9, 0.2, 0.2, 0.9], // Index and pinky extended, others more closed
-      threshold: 0.65, // Higher threshold to prevent false positives
-      description: 'Index and pinky fingers extended'
+      fingerPositions: [0.2, 0.9, 0.2, 0.2, 0.9], // Rock on - for visual reference
+      threshold: 0.65,
+      description: 'Push your hand forward toward the camera',
+      motionPattern: MotionPattern.FORWARD_THRUST,
+      handRequired: 'any'
     }
   ]);
   
@@ -57,7 +67,7 @@ export const GestureDetectionDemo: React.FC = () => {
     const initDetector = async () => {
       try {
         const newDetector = new GestureDetector();
-        await newDetector.initialize();
+        await newDetector.initialize(true); // Enable motion tracking
         setDetector(newDetector);
         setInitialized(true);
       } catch (error) {
