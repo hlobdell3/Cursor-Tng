@@ -32,6 +32,11 @@ export class GestureDetector {
   private lastFpsUpdateTime: number = 0;
   private currentFps: number = 0;
   
+  // Gesture debouncing to avoid flickering
+  private lastDetectedGesture: string | null = null;
+  private lastGestureTime: number = 0;
+  private gestureCooldownMs: number = 1000; // Cooldown between different gesture detections
+  
   /**
    * Initialize the hand pose detector
    */
@@ -222,15 +227,39 @@ export class GestureDetector {
    * Detect if the current hand pose matches any registered gestures
    */
   private detectGestures(currentPose: HandPose): void {
+    const now = Date.now();
+    let bestMatch: { gesture: Gesture, score: number } | null = null;
+    
+    // Find the best matching gesture
     for (const gesture of this.registeredGestures) {
       const match = this.matchGesture(currentPose, gesture);
       
-      if (match.isMatch && this.onGestureDetectedCallback) {
-        // Create a new gesture object with the match details
-        const detectedGesture: Gesture = {
-          ...gesture,
-          score: match.score
-        };
+      if (match.isMatch) {
+        if (!bestMatch || match.score > bestMatch.score) {
+          bestMatch = { 
+            gesture, 
+            score: match.score 
+          };
+        }
+      }
+    }
+    
+    // If we have a match and a callback
+    if (bestMatch && this.onGestureDetectedCallback) {
+      const detectedGesture: Gesture = {
+        ...bestMatch.gesture,
+        score: bestMatch.score
+      };
+      
+      // Check if this is a new gesture or if the cooldown has elapsed
+      const isSameGesture = this.lastDetectedGesture === detectedGesture.id;
+      const isCooldownElapsed = (now - this.lastGestureTime) > this.gestureCooldownMs;
+      
+      // Only trigger callback if it's the same gesture (no cooldown)
+      // or it's a different gesture and the cooldown has elapsed
+      if (isSameGesture || isCooldownElapsed) {
+        this.lastDetectedGesture = detectedGesture.id;
+        this.lastGestureTime = now;
         
         this.onGestureDetectedCallback(detectedGesture);
       }
@@ -406,17 +435,31 @@ export class GestureDetector {
     }
     
     let matchScore = 0;
+    const weights = [0.8, 1.2, 1.2, 1.0, 1.2]; // Give more weight to index, middle and pinky fingers
+    let totalWeight = 0;
     
     for (let i = 0; i < extensions.length; i++) {
       // Calculate how close the extension matches the pattern
       // 0 = no match, 1 = perfect match
       const extensionDiff = Math.abs(extensions[i] - gesturePattern[i]);
-      const fingerScore = 1 - Math.min(extensionDiff, 1);
+      
+      // More penalty for fingers that should be clearly extended or closed
+      // For values close to 0 (closed) or close to 1 (extended), be more strict
+      let fingerScore = 1 - Math.min(extensionDiff, 1);
+      
+      // Apply weights to different fingers
+      fingerScore *= weights[i];
       matchScore += fingerScore;
+      totalWeight += weights[i];
     }
     
     // Normalize score between 0 and 1
-    return { score: matchScore / extensions.length };
+    // Apply a 1.15x multiplier to make recognition more forgiving
+    // This provides a small boost but prevents too many false positives
+    let finalScore = matchScore / totalWeight;
+    finalScore = Math.min(finalScore * 1.15, 1.0); // Apply multiplier but cap at 1.0
+    
+    return { score: finalScore };
   }
   
   /**

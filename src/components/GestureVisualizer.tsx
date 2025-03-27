@@ -93,12 +93,15 @@ export const GestureVisualizer: React.FC<GestureVisualizerProps> = ({
       
       // Gesture detection callback
       detector.onGestureDetected((gesture: Gesture) => {
-        setDetectedGesture(`${gesture.name} (${Math.round(gesture.score * 100)}%)`);
+        const disciplineName = gesture.disciplineKey;
+        const confidencePercentage = Math.round(gesture.score * 100);
         
-        // Clear gesture text after 2 seconds
+        setDetectedGesture(`You made the ${disciplineName} gesture! (${confidencePercentage}% confidence)`);
+        
+        // Clear gesture text after 3 seconds (increased from 2 seconds)
         setTimeout(() => {
           setDetectedGesture('');
-        }, 2000);
+        }, 3000); // Increased display time for better visibility
       });
       
       // Start detection
@@ -198,7 +201,7 @@ export const GestureVisualizer: React.FC<GestureVisualizerProps> = ({
         
         {detectedGesture && (
           <div className="gesture-alert">
-            Detected: {detectedGesture}
+            {detectedGesture}
           </div>
         )}
         
@@ -245,39 +248,39 @@ export const GestureVisualizer: React.FC<GestureVisualizerProps> = ({
           height: 100%;
         }
         
+        .gesture-alert {
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          background-color: rgba(0, 150, 255, 0.8);
+          color: white;
+          padding: 16px 24px;
+          border-radius: 8px;
+          font-size: 24px;
+          font-weight: bold;
+          text-align: center;
+          z-index: 10;
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+          animation: pulse 1.5s infinite;
+          max-width: 80%;
+        }
+        
+        @keyframes pulse {
+          0% { transform: translate(-50%, -50%) scale(1); }
+          50% { transform: translate(-50%, -50%) scale(1.05); }
+          100% { transform: translate(-50%, -50%) scale(1); }
+        }
+        
         .stats-panel {
           position: absolute;
           top: 10px;
           left: 10px;
-          background: rgba(0, 0, 0, 0.7);
+          background-color: rgba(0, 0, 0, 0.5);
           color: white;
-          padding: 10px;
+          padding: 5px 10px;
           border-radius: 4px;
-          font-family: monospace;
-          font-size: 14px;
-        }
-        
-        .gesture-alert {
-          position: absolute;
-          bottom: 20px;
-          left: 0;
-          right: 0;
-          background: rgba(0, 150, 0, 0.8);
-          color: white;
-          padding: 15px;
-          margin: 0 auto;
-          width: fit-content;
-          max-width: 80%;
-          text-align: center;
-          border-radius: 4px;
-          font-size: 18px;
-          font-weight: bold;
-          animation: fadeIn 0.3s ease-in;
-        }
-        
-        @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(20px); }
-          to { opacity: 1; transform: translateY(0); }
+          font-size: 12px;
         }
       `}</style>
     </div>

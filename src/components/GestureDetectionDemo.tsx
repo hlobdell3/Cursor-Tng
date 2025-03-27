@@ -2,18 +2,20 @@ import React, { useState, useEffect } from 'react';
 import { GestureDetector } from '../utils/GestureDetector';
 import { GestureVisualizer } from './GestureVisualizer';
 import { Gesture, SpellDiscipline } from '../types/gesture';
+import GestureGuide from './GestureGuide';
 
 export const GestureDetectionDemo: React.FC = () => {
   const [detector, setDetector] = useState<GestureDetector | null>(null);
   const [initialized, setInitialized] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string>('');
+  const [showIdealPositions, setShowIdealPositions] = useState<boolean>(false);
   const [testGestures] = useState<Gesture[]>([
     {
       id: 'open_palm',
       name: 'Open Palm',
       disciplineKey: SpellDiscipline.FIRE,
       fingerPositions: [0.8, 0.8, 0.8, 0.8, 0.8], // All fingers extended
-      threshold: 0.6,
+      threshold: 0.5,
       description: 'Open palm with all fingers extended'
     },
     {
@@ -21,7 +23,7 @@ export const GestureDetectionDemo: React.FC = () => {
       name: 'Pointing',
       disciplineKey: SpellDiscipline.AIR,
       fingerPositions: [0.3, 0.9, 0.2, 0.2, 0.2], // Index finger extended
-      threshold: 0.6,
+      threshold: 0.5,
       description: 'Point with index finger'
     },
     {
@@ -29,7 +31,7 @@ export const GestureDetectionDemo: React.FC = () => {
       name: 'Closed Fist',
       disciplineKey: SpellDiscipline.EARTH,
       fingerPositions: [0.1, 0.1, 0.1, 0.1, 0.1], // All fingers closed
-      threshold: 0.6,
+      threshold: 0.5,
       description: 'Closed fist with all fingers curled in'
     },
     {
@@ -37,15 +39,15 @@ export const GestureDetectionDemo: React.FC = () => {
       name: 'Victory Sign',
       disciplineKey: SpellDiscipline.WATER,
       fingerPositions: [0.3, 0.9, 0.9, 0.2, 0.2], // Index and middle extended
-      threshold: 0.6,
+      threshold: 0.5,
       description: 'V-sign with index and middle fingers'
     },
     {
       id: 'rock_on',
       name: 'Rock On',
       disciplineKey: SpellDiscipline.LIGHTNING,
-      fingerPositions: [0.3, 0.9, 0.2, 0.2, 0.9], // Index and pinky extended
-      threshold: 0.6,
+      fingerPositions: [0.2, 0.9, 0.2, 0.2, 0.9], // Index and pinky extended, others more closed
+      threshold: 0.65, // Higher threshold to prevent false positives
       description: 'Index and pinky fingers extended'
     }
   ]);
@@ -94,20 +96,33 @@ export const GestureDetectionDemo: React.FC = () => {
       
       {initialized && detector && (
         <div className="demo-content">
-          <GestureVisualizer detector={detector} gestures={testGestures} />
+          <div className="main-content">
+            <GestureVisualizer detector={detector} gestures={testGestures} />
+            
+            <div className="action-buttons">
+              <button 
+                className="toggle-guide-button"
+                onClick={() => setShowIdealPositions(!showIdealPositions)}
+              >
+                {showIdealPositions ? 'Hide Ideal Positions' : 'Show Ideal Positions'}
+              </button>
+            </div>
+            
+            {showIdealPositions && <GestureGuide />}
           
-          <div className="gesture-guide">
-            <h3>Try these gestures:</h3>
-            <div className="gesture-list">
-              {testGestures.map(gesture => (
-                <div className="gesture-card" key={gesture.id}>
-                  <h4>{gesture.name}</h4>
-                  <p>{gesture.description}</p>
-                  <p className="discipline">
-                    <strong>Discipline:</strong> {gesture.disciplineKey}
-                  </p>
-                </div>
-              ))}
+            <div className="gesture-guide">
+              <h3>Try these gestures:</h3>
+              <div className="gesture-list">
+                {testGestures.map(gesture => (
+                  <div className="gesture-card" key={gesture.id}>
+                    <h4>{gesture.name}</h4>
+                    <p>{gesture.description}</p>
+                    <p className="discipline">
+                      <strong>Discipline:</strong> {gesture.disciplineKey}
+                    </p>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
@@ -144,6 +159,33 @@ export const GestureDetectionDemo: React.FC = () => {
           display: flex;
           flex-direction: column;
           gap: 20px;
+        }
+        
+        .main-content {
+          display: flex;
+          flex-direction: column;
+          gap: 20px;
+        }
+        
+        .action-buttons {
+          display: flex;
+          justify-content: center;
+          margin: 10px 0;
+        }
+        
+        .toggle-guide-button {
+          background: #4a90e2;
+          color: white;
+          border: none;
+          padding: 10px 20px;
+          border-radius: 4px;
+          font-weight: bold;
+          cursor: pointer;
+          transition: background-color 0.2s;
+        }
+        
+        .toggle-guide-button:hover {
+          background: #3a80d2;
         }
         
         .gesture-guide {
@@ -192,6 +234,11 @@ export const GestureDetectionDemo: React.FC = () => {
           .demo-content {
             flex-direction: row;
             align-items: flex-start;
+          }
+          
+          .main-content {
+            flex: 1;
+            max-width: 100%;
           }
           
           .gesture-guide {
