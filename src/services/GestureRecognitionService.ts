@@ -1,5 +1,4 @@
-import * as tf from '@tensorflow/tfjs';
-import * as handpose from '@tensorflow-models/handpose';
+// import * as handpose from '@tensorflow-models/handpose'; // Removed this import
 import * as handPoseDetection from '@tensorflow-models/hand-pose-detection';
 import { HAND_CONNECTIONS } from '@mediapipe/hands';
 import { 
@@ -13,6 +12,9 @@ import {
   DisciplineGesture,
   GestureComparisonResult
 } from '../types/gesture';
+import { HandPose, Gesture } from '../types';
+import { TensorFlowUtils } from '../utils/TensorFlowUtils';
+import { landmarkPoints } from './gestures/landmarkPoints';
 
 export class GestureRecognitionService {
   private model: handpose.HandPose | null = null;

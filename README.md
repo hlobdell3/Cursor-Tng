@@ -23,29 +23,76 @@ A multiplayer web-based game where players cast spells using hand gestures captu
 
 ### Prerequisites
 
-- Node.js (v14 or higher)
-- Modern web browser with webcam access
-- Good internet connection for multiplayer
+- Node.js (v16 or newer)
+- npm or yarn or pnpm
 
 ### Installation
 
-1. Clone the repository
-   ```
-   git clone https://github.com/yourusername/spell-casting-game.git
-   cd spell-casting-game
-   ```
+1. Clone this repository
+2. Install dependencies using one of the following commands:
 
-2. Install dependencies
-   ```
-   npm install
-   ```
+```bash
+# Using npm
+npm install
 
-3. Start the development server
-   ```
-   npm run dev
-   ```
+# Using yarn
+yarn
 
-4. Open your browser and navigate to `http://localhost:5173`
+# Using pnpm
+pnpm install
+```
+
+### Running the Application
+
+Start the development server:
+
+```bash
+# Using npm
+npm run dev
+
+# Using yarn
+yarn dev
+
+# Using pnpm
+pnpm dev
+```
+
+The application should open in your browser at `http://localhost:5173`.
+
+## Usage
+
+1. Allow camera access when prompted
+2. Follow the animation guides to perform motion gestures:
+   - Fire: Make a clockwise circular motion with your hand
+   - Air: Move your hand up and down vertically
+   - Earth: Move your hand left and right horizontally
+   - Water: Wave your hand side to side multiple times
+   - Lightning: Push your hand toward the camera
+
+The application will display the detected gesture and confidence percentage in a popup on the screen.
+
+## Troubleshooting
+
+- **Camera access denied:** Make sure you've granted camera permissions to your browser
+- **Low detection accuracy:** Ensure you're in a well-lit environment and your hand is clearly visible
+- **Performance issues:** Close other resource-intensive applications
+
+## Important Note About Installation
+
+If you're having issues running the application with npm, you can try using a Node version manager:
+
+- [nvm](https://github.com/nvm-sh/nvm) (for Mac/Linux)
+- [nvm-windows](https://github.com/coreybutler/nvm-windows) (for Windows)
+
+Or try using an alternative package manager like yarn or pnpm:
+
+```bash
+# Install yarn
+npm install -g yarn
+
+# Install pnpm
+npm install -g pnpm
+```
 
 ## Game Mechanics
 

@@ -87,6 +87,8 @@ const App: React.FC = () => {
   };
   
   const renderGameScreen = () => {
+    console.log('Current game state:', gameState); // Debug log
+    
     switch (gameState) {
       case GameState.MENU:
         return (
@@ -95,146 +97,148 @@ const App: React.FC = () => {
             <p>Cast spells using hand gestures to defeat your opponents!</p>
             <div className="menu-buttons">
               <button onClick={handleGameStart}>Start Game</button>
-              <button onClick={() => setGameState(GameState.ASSET_DEMO)}>
-                View Asset Placeholders
-              </button>
-              <button onClick={() => setGameState(GameState.ASSET_LOADER_DEMO)}>
-                Asset Loader Demo
-              </button>
               <button onClick={() => setGameState(GameState.GESTURE_DEMO)}>
                 Gesture Recognition Test
               </button>
               <button onClick={() => setGameState(GameState.SPELL_CASTING_DEMO)}>
                 Spell Casting Demo
               </button>
+              <button onClick={() => setGameState(GameState.ASSET_DEMO)}>
+                View Asset Placeholders
+              </button>
             </div>
           </div>
         );
-        
+      
       case GameState.TUTORIAL:
         return (
-          <SpellTutorial 
-            spells={startingSpells}
-            onComplete={handleTutorialComplete}
-            onExit={handleTutorialSkip}
-          />
+          <div className="tutorial">
+            <SpellTutorial
+              onComplete={handleTutorialComplete}
+              onSkip={handleTutorialSkip}
+            />
+          </div>
         );
-        
+      
       case GameState.SPELL_SELECTION:
-        // In a real implementation, this would be a separate component
         return (
           <div className="spell-selection">
             <h2>Select Your Spells</h2>
-            <p>Choose spells to take into battle. For this demo, we've pre-selected some for you.</p>
-            <div className="selected-spells">
-              {selectedSpells.map(spell => (
+            <div className="spell-grid">
+              {allSpells.map(spell => (
                 <div key={spell.id} className="spell-card">
                   <h3>{spell.name}</h3>
                   <p>{spell.description}</p>
-                  <p><strong>Discipline:</strong> {spell.discipline}</p>
-                  <p><strong>Type:</strong> {spell.category}</p>
+                  <p>Power: {spell.power}</p>
+                  <p>Category: {spell.category}</p>
                 </div>
               ))}
             </div>
-            <button onClick={() => handleSpellSelectionComplete(selectedSpells)}>
-              Start Battle
+            <button onClick={() => handleSpellSelectionComplete(startingSpells)}>
+              Continue with Default Spells
             </button>
           </div>
         );
-        
+      
       case GameState.GAME_ACTIVE:
         return (
           <div className="game-arena">
             <div className="health-bars">
-              <div className="health-bar player">
-                <div className="health-label">Player: {playerHealth}</div>
-                <div className="health-fill" style={{ width: `${(playerHealth / 500) * 100}%` }} />
+              <div className="health-bar">
+                <div className="health-label">Player Health</div>
+                <div 
+                  className="health-fill" 
+                  style={{ width: `${(playerHealth / 500) * 100}%` }}
+                />
               </div>
-              <div className="health-bar opponent">
-                <div className="health-label">Opponent: {opponentHealth}</div>
-                <div className="health-fill" style={{ width: `${(opponentHealth / 500) * 100}%` }} />
+              <div className="health-bar">
+                <div className="health-label">Opponent Health</div>
+                <div 
+                  className="health-fill" 
+                  style={{ width: `${(opponentHealth / 500) * 100}%` }}
+                />
               </div>
             </div>
             
-            {currentDiscipline && (
-              <div className="opponent-casting">
-                <h3>Opponent is casting a {currentDiscipline} spell!</h3>
-              </div>
-            )}
-            
-            {lastCastSpell && (
-              <div className="last-spell-cast">
-                <h3>You cast {lastCastSpell.spell.name}!</h3>
-                <p>Power: {Math.round(lastCastSpell.effectivePower)}</p>
-                <p>Accuracy: {Math.round(lastCastSpell.accuracy * 100)}%</p>
-              </div>
-            )}
-            
-            <SpellCasting 
+            <SpellCasting
               onSpellCast={handleSpellCast}
               playerSpells={selectedSpells}
               playerHealth={playerHealth}
               gameActive={true}
               onDisciplineDetected={handleDisciplineDetected}
             />
+            
+            {lastCastSpell && (
+              <div className="last-spell-cast">
+                Last cast: {lastCastSpell.spell.name} (Power: {lastCastSpell.effectivePower})
+              </div>
+            )}
+            
+            {currentDiscipline && (
+              <div className="current-discipline">
+                Current Discipline: {currentDiscipline}
+              </div>
+            )}
           </div>
         );
-        
+      
       case GameState.GAME_OVER:
         return (
           <div className="game-over">
-            <h1>{opponentHealth <= 0 ? 'Victory!' : 'Defeat!'}</h1>
-            <p>{opponentHealth <= 0 ? 'You defeated your opponent!' : 'Your opponent was victorious.'}</p>
-            <button onClick={() => window.location.reload()}>Play Again</button>
-          </div>
-        );
-        
-      case GameState.ASSET_DEMO:
-        return (
-          <div className="asset-demo-container">
-            <button onClick={() => setGameState(GameState.MENU)} className="back-button">
-              Back to Menu
+            <h2>Game Over!</h2>
+            <p>{opponentHealth <= 0 ? 'You won!' : 'You lost!'}</p>
+            <button onClick={() => setGameState(GameState.MENU)}>
+              Return to Menu
             </button>
-            <AssetDemo showAll={true} />
           </div>
         );
-        
-      case GameState.ASSET_LOADER_DEMO:
-        return (
-          <div className="asset-demo-container">
-            <button onClick={() => setGameState(GameState.MENU)} className="back-button">
-              Back to Menu
-            </button>
-            <AssetLoaderDemo usePlaceholders={true} />
-          </div>
-        );
-        
+      
       case GameState.GESTURE_DEMO:
         return (
           <div className="gesture-demo-container">
-            <button onClick={() => setGameState(GameState.MENU)} className="back-button">
+            <button className="back-button" onClick={() => setGameState(GameState.MENU)}>
               Back to Menu
             </button>
             <GestureDetectionDemo />
           </div>
         );
-        
+      
       case GameState.SPELL_CASTING_DEMO:
         return (
           <div className="spell-casting-demo-container">
-            <button onClick={() => setGameState(GameState.MENU)} className="back-button">
+            <button className="back-button" onClick={() => setGameState(GameState.MENU)}>
               Back to Menu
             </button>
             <SpellCastingDemo />
           </div>
         );
+      
+      case GameState.ASSET_DEMO:
+        return (
+          <div className="asset-demo-container">
+            <button className="back-button" onClick={() => setGameState(GameState.MENU)}>
+              Back to Menu
+            </button>
+            <AssetDemo />
+          </div>
+        );
+      
+      default:
+        return (
+          <div className="game-menu">
+            <h1>Error: Invalid Game State</h1>
+            <button onClick={() => setGameState(GameState.MENU)}>
+              Return to Menu
+            </button>
+          </div>
+        );
     }
   };
-  
+
   return (
     <div className="app-container">
       {renderGameScreen()}
-      <style jsx>{`
+      <style>{`
         .app-container {
           max-width: 100vw;
           min-height: 100vh;
@@ -244,51 +248,75 @@ const App: React.FC = () => {
         
         .game-menu {
           text-align: center;
-          max-width: 600px;
+          padding: 40px;
+          max-width: 800px;
           margin: 0 auto;
-          padding: 40px 20px;
+          background: white;
+          border-radius: 12px;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .game-menu h1 {
+          color: #1a1a1a;
+          margin-bottom: 20px;
+          font-size: 2.5em;
+        }
+        
+        .game-menu p {
+          color: #666;
+          margin-bottom: 30px;
+          font-size: 1.2em;
         }
         
         .menu-buttons {
           display: flex;
           flex-direction: column;
-          gap: 10px;
+          gap: 15px;
           max-width: 300px;
-          margin: 20px auto;
+          margin: 0 auto;
         }
         
-        .game-menu button {
-          margin: 0;
+        .menu-buttons button {
           padding: 12px 24px;
-          font-size: 18px;
-          background: #4a6da7;
+          font-size: 1.1em;
+          background: #4a90e2;
           color: white;
           border: none;
-          border-radius: 4px;
+          border-radius: 6px;
           cursor: pointer;
-          transition: background 0.3s;
+          transition: background 0.2s;
         }
         
-        .game-menu button:hover {
-          background: #3a5d97;
+        .menu-buttons button:hover {
+          background: #357abd;
         }
         
         .back-button {
-          margin-bottom: 20px;
+          position: absolute;
+          top: 20px;
+          left: 20px;
           padding: 8px 16px;
-          background: #6c757d;
+          background: #4a90e2;
           color: white;
           border: none;
           border-radius: 4px;
           cursor: pointer;
+          z-index: 100;
         }
         
         .back-button:hover {
-          background: #5a6268;
+          background: #357abd;
         }
         
-        .asset-demo-container, .gesture-demo-container, .spell-casting-demo-container {
-          padding-top: 20px;
+        .gesture-demo-container,
+        .spell-casting-demo-container,
+        .asset-demo-container {
+          position: relative;
+          width: 100%;
+          height: 100vh;
+          display: flex;
+          justify-content: center;
+          align-items: center;
         }
       `}</style>
     </div>

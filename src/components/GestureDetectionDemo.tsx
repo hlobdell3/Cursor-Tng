@@ -1,260 +1,480 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { GestureDetector } from '../utils/GestureDetector';
 import { GestureVisualizer } from './GestureVisualizer';
-import { Gesture, SpellDiscipline, MotionPattern } from '../types/gesture';
+import { Gesture, SpellDiscipline, MotionPattern, HandPose } from '../types/gesture';
 import GestureGuide from './GestureGuide';
+import { TensorFlowUtils } from '../utils/TensorFlowUtils';
 
 export const GestureDetectionDemo: React.FC = () => {
   const [detector, setDetector] = useState<GestureDetector | null>(null);
   const [initialized, setInitialized] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [showIdealPositions, setShowIdealPositions] = useState<boolean>(false);
+  const [showGuide, setShowGuide] = useState<boolean>(false);
+  const [initializationStep, setInitializationStep] = useState<string>('Starting initialization...');
+  const isInitializing = useRef(false);
+  const isMounted = useRef(true);
   const [testGestures] = useState<Gesture[]>([
     {
-      id: 'circle_clockwise',
-      name: 'Circular Motion (clockwise)',
+      id: 'fire_gesture',
+      name: 'Fire',
       disciplineKey: SpellDiscipline.FIRE,
-      fingerPositions: [0.8, 0.8, 0.8, 0.8, 0.8], // All fingers extended - basic open palm
-      threshold: 0.5,
-      description: 'Draw a clockwise circle with your hand',
+      description: 'Make a clockwise circular motion with your hand',
       motionPattern: MotionPattern.CIRCLE_CLOCKWISE,
-      handRequired: 'right'
+      handRequired: 'any',
+      motionDuration: 1000,
+      threshold: 0.6,
+      fingerPositions: [0.5, 0.5, 0.5, 0.5, 0.5] // Default values, not used
     },
     {
-      id: 'vertical_motion',
-      name: 'Vertical Motion',
+      id: 'air_gesture',
+      name: 'Air',
       disciplineKey: SpellDiscipline.AIR,
-      fingerPositions: [0.3, 0.9, 0.2, 0.2, 0.2], // Index finger extended - for visual reference
-      threshold: 0.5,
-      description: 'Move your hand up and down vertically',
-      motionPattern: MotionPattern.VERTICAL_UP_DOWN,
-      handRequired: 'any'
+      description: 'Clap your hands together',
+      motionPattern: MotionPattern.TWO_HAND_CLAP,
+      handRequired: 'any',
+      motionDuration: 500,
+      threshold: 0.6,
+      fingerPositions: [0.5, 0.5, 0.5, 0.5, 0.5] // Default values, not used
     },
     {
-      id: 'horizontal_motion',
-      name: 'Horizontal Motion',
+      id: 'earth_gesture',
+      name: 'Earth',
       disciplineKey: SpellDiscipline.EARTH,
-      fingerPositions: [0.1, 0.1, 0.1, 0.1, 0.1], // Closed fist - for visual reference
-      threshold: 0.5,
-      description: 'Move your hand side to side horizontally',
-      motionPattern: MotionPattern.HORIZONTAL_LEFT_RIGHT,
-      handRequired: 'any'
+      description: 'Create a V shape with both hands',
+      motionPattern: MotionPattern.V_SHAPE,
+      handRequired: 'any',
+      motionDuration: 1000,
+      threshold: 0.6,
+      fingerPositions: [0.5, 0.5, 0.5, 0.5, 0.5] // Default values, not used
     },
     {
-      id: 'wave_motion',
-      name: 'Wave Motion',
+      id: 'water_gesture',
+      name: 'Water',
       disciplineKey: SpellDiscipline.WATER,
-      fingerPositions: [0.3, 0.9, 0.9, 0.2, 0.2], // V-sign - for visual reference
-      threshold: 0.5,
-      description: 'Wave your hand side to side several times',
-      motionPattern: MotionPattern.WAVE,
-      handRequired: 'any'
+      description: 'Draw a W shape with your hand',
+      motionPattern: MotionPattern.W_SHAPE,
+      handRequired: 'any',
+      motionDuration: 1000,
+      threshold: 0.6,
+      fingerPositions: [0.5, 0.5, 0.5, 0.5, 0.5] // Default values, not used
     },
     {
-      id: 'forward_thrust',
-      name: 'Forward Thrust',
+      id: 'lightning_gesture',
+      name: 'Lightning',
       disciplineKey: SpellDiscipline.LIGHTNING,
-      fingerPositions: [0.2, 0.9, 0.2, 0.2, 0.9], // Rock on - for visual reference
-      threshold: 0.65,
-      description: 'Push your hand forward toward the camera',
-      motionPattern: MotionPattern.FORWARD_THRUST,
-      handRequired: 'any'
+      description: 'Draw a Z shape with your hand',
+      motionPattern: MotionPattern.ZIGZAG,
+      handRequired: 'any',
+      motionDuration: 1000,
+      threshold: 0.6,
+      fingerPositions: [0.5, 0.5, 0.5, 0.5, 0.5] // Default values, not used
     }
   ]);
   
-  // Initialize the detector when component mounts
+  // Cleanup on unmount
   useEffect(() => {
-    const initDetector = async () => {
-      try {
-        const newDetector = new GestureDetector();
-        await newDetector.initialize(true); // Enable motion tracking
-        setDetector(newDetector);
-        setInitialized(true);
-      } catch (error) {
-        console.error('Failed to initialize gesture detector:', error);
-        setErrorMessage('Failed to initialize gesture recognition. Please check browser compatibility and permissions.');
-      }
-    };
+    console.log('GestureDetectionDemo mounting...');
+    isMounted.current = true;
     
-    initDetector();
-    
-    // Clean up when component unmounts
     return () => {
+      console.log('GestureDetectionDemo unmounting...');
+      isMounted.current = false;
       if (detector) {
+        detector.stopDetection();
         detector.dispose();
       }
     };
+  }, [detector]);
+
+  // Initialize the detector
+  useEffect(() => {
+    const setupDetector = async () => {
+      if (isInitializing.current) {
+        console.log('Detector initialization already in progress...');
+        return;
+      }
+
+      try {
+        isInitializing.current = true;
+        setInitializationStep('Checking system requirements...');
+        console.log('Checking system requirements...');
+        
+        // Check system requirements first
+        const { supported, issues } = await TensorFlowUtils.checkSystemRequirements();
+        if (!supported) {
+          throw new Error(`System requirements not met: ${issues.join(', ')}`);
+        }
+        
+        setInitializationStep('Initializing gesture detector...');
+        console.log('Initializing gesture detector...');
+        
+        const newDetector = new GestureDetector();
+        
+        // Initialize with motion tracking enabled
+        setInitializationStep('Setting up TensorFlow...');
+        console.log('Setting up TensorFlow...');
+        const success = await newDetector.initialize(true);
+        if (!success) {
+          throw new Error('Failed to initialize gesture detector');
+        }
+        
+        if (!isMounted.current) {
+          console.log('Component unmounted during detector initialization, cleaning up...');
+          newDetector.dispose();
+          return;
+        }
+        
+        console.log('Gesture detector initialized successfully');
+        setDetector(newDetector);
+        
+        // Register test gestures
+        setInitializationStep('Registering gestures...');
+        console.log('Registering gestures:', testGestures);
+        newDetector.registerGestures(testGestures);
+        
+        // Set up callbacks
+        setInitializationStep('Setting up callbacks...');
+        console.log('Setting up callbacks...');
+        newDetector.onHandPoseDetected((handPose) => {
+          console.log('Hand pose detected:', {
+            timestamp: handPose.timestamp,
+            handedness: handPose.handedness,
+            score: handPose.score,
+            landmarks: handPose.landmarks.length
+          });
+        });
+        
+        newDetector.onGestureDetected((gesture) => {
+          console.log('Gesture detected:', {
+            name: gesture.name,
+            discipline: gesture.disciplineKey,
+            score: gesture.score,
+            motionPattern: gesture.motionPattern
+          });
+        });
+        
+        setInitialized(true);
+      } catch (error) {
+        console.error('Error setting up gesture detector:', error);
+        if (isMounted.current) {
+          setErrorMessage(error instanceof Error ? error.message : 'Failed to initialize gesture detection');
+        }
+      } finally {
+        isInitializing.current = false;
+      }
+    };
+    
+    setupDetector();
   }, []);
   
+  // Handle video element setup and detection start
+  const handleVideoReady = async (videoElement: HTMLVideoElement) => {
+    if (!detector) {
+      console.error('Detector not initialized when video is ready');
+      return;
+    }
+
+    try {
+      setInitializationStep('Setting up video element...');
+      console.log('Setting video element for detector...');
+      
+      // Ensure video element is ready
+      if (!videoElement || !videoElement.readyState || videoElement.readyState < 2) {
+        throw new Error('Video element is not ready');
+      }
+      
+      detector.setVideoElement(videoElement);
+
+      // Start detection
+      setInitializationStep('Starting gesture detection...');
+      console.log('Starting gesture detection...');
+      const detectionStarted = await detector.startDetection();
+      if (!detectionStarted) {
+        throw new Error('Failed to start gesture detection');
+      }
+
+      console.log('Gesture detection started successfully');
+      setInitialized(true);
+    } catch (error) {
+      console.error('Error setting up video and detection:', error);
+      setErrorMessage(error instanceof Error ? error.message : 'Failed to start gesture detection');
+    }
+  };
+
+  // Define ideal hand positions for each gesture
+  const idealPositions: Record<string, HandPose> = {
+    fire: {
+      timestamp: Date.now(),
+      landmarks: [
+        // Thumb
+        { x: 0.5, y: 0.5, z: 0 },
+        { x: 0.6, y: 0.5, z: 0 },
+        { x: 0.7, y: 0.5, z: 0 },
+        { x: 0.8, y: 0.5, z: 0 },
+        // Index
+        { x: 0.5, y: 0.5, z: 0 },
+        { x: 0.6, y: 0.4, z: 0 },
+        { x: 0.7, y: 0.3, z: 0 },
+        { x: 0.8, y: 0.2, z: 0 },
+        // Middle
+        { x: 0.5, y: 0.5, z: 0 },
+        { x: 0.6, y: 0.3, z: 0 },
+        { x: 0.7, y: 0.2, z: 0 },
+        { x: 0.8, y: 0.1, z: 0 },
+        // Ring
+        { x: 0.5, y: 0.5, z: 0 },
+        { x: 0.6, y: 0.2, z: 0 },
+        { x: 0.7, y: 0.1, z: 0 },
+        { x: 0.8, y: 0.0, z: 0 },
+        // Pinky
+        { x: 0.5, y: 0.5, z: 0 },
+        { x: 0.6, y: 0.1, z: 0 },
+        { x: 0.7, y: 0.0, z: 0 },
+        { x: 0.8, y: -0.1, z: 0 },
+        // Palm
+        { x: 0.5, y: 0.5, z: 0 }
+      ],
+      handedness: 'right',
+      score: 1.0
+    },
+    air: {
+      timestamp: Date.now(),
+      landmarks: [
+        // Thumb
+        { x: 0.5, y: 0.5, z: 0 },
+        { x: 0.6, y: 0.5, z: 0 },
+        { x: 0.7, y: 0.5, z: 0 },
+        { x: 0.8, y: 0.5, z: 0 },
+        // Index
+        { x: 0.5, y: 0.5, z: 0 },
+        { x: 0.6, y: 0.4, z: 0 },
+        { x: 0.7, y: 0.3, z: 0 },
+        { x: 0.8, y: 0.2, z: 0 },
+        // Middle
+        { x: 0.5, y: 0.5, z: 0 },
+        { x: 0.6, y: 0.3, z: 0 },
+        { x: 0.7, y: 0.2, z: 0 },
+        { x: 0.8, y: 0.1, z: 0 },
+        // Ring
+        { x: 0.5, y: 0.5, z: 0 },
+        { x: 0.6, y: 0.2, z: 0 },
+        { x: 0.7, y: 0.1, z: 0 },
+        { x: 0.8, y: 0.0, z: 0 },
+        // Pinky
+        { x: 0.5, y: 0.5, z: 0 },
+        { x: 0.6, y: 0.1, z: 0 },
+        { x: 0.7, y: 0.0, z: 0 },
+        { x: 0.8, y: -0.1, z: 0 },
+        // Palm
+        { x: 0.5, y: 0.5, z: 0 }
+      ],
+      handedness: 'right',
+      score: 1.0
+    },
+    earth: {
+      timestamp: Date.now(),
+      landmarks: [
+        // Thumb
+        { x: 0.5, y: 0.5, z: 0 },
+        { x: 0.6, y: 0.5, z: 0 },
+        { x: 0.7, y: 0.5, z: 0 },
+        { x: 0.8, y: 0.5, z: 0 },
+        // Index
+        { x: 0.5, y: 0.5, z: 0 },
+        { x: 0.6, y: 0.4, z: 0 },
+        { x: 0.7, y: 0.3, z: 0 },
+        { x: 0.8, y: 0.2, z: 0 },
+        // Middle
+        { x: 0.5, y: 0.5, z: 0 },
+        { x: 0.6, y: 0.3, z: 0 },
+        { x: 0.7, y: 0.2, z: 0 },
+        { x: 0.8, y: 0.1, z: 0 },
+        // Ring
+        { x: 0.5, y: 0.5, z: 0 },
+        { x: 0.6, y: 0.2, z: 0 },
+        { x: 0.7, y: 0.1, z: 0 },
+        { x: 0.8, y: 0.0, z: 0 },
+        // Pinky
+        { x: 0.5, y: 0.5, z: 0 },
+        { x: 0.6, y: 0.1, z: 0 },
+        { x: 0.7, y: 0.0, z: 0 },
+        { x: 0.8, y: -0.1, z: 0 },
+        // Palm
+        { x: 0.5, y: 0.5, z: 0 }
+      ],
+      handedness: 'right',
+      score: 1.0
+    },
+    water: {
+      timestamp: Date.now(),
+      landmarks: [
+        // Thumb
+        { x: 0.5, y: 0.5, z: 0 },
+        { x: 0.6, y: 0.5, z: 0 },
+        { x: 0.7, y: 0.5, z: 0 },
+        { x: 0.8, y: 0.5, z: 0 },
+        // Index
+        { x: 0.5, y: 0.5, z: 0 },
+        { x: 0.6, y: 0.4, z: 0 },
+        { x: 0.7, y: 0.3, z: 0 },
+        { x: 0.8, y: 0.2, z: 0 },
+        // Middle
+        { x: 0.5, y: 0.5, z: 0 },
+        { x: 0.6, y: 0.3, z: 0 },
+        { x: 0.7, y: 0.2, z: 0 },
+        { x: 0.8, y: 0.1, z: 0 },
+        // Ring
+        { x: 0.5, y: 0.5, z: 0 },
+        { x: 0.6, y: 0.2, z: 0 },
+        { x: 0.7, y: 0.1, z: 0 },
+        { x: 0.8, y: 0.0, z: 0 },
+        // Pinky
+        { x: 0.5, y: 0.5, z: 0 },
+        { x: 0.6, y: 0.1, z: 0 },
+        { x: 0.7, y: 0.0, z: 0 },
+        { x: 0.8, y: -0.1, z: 0 },
+        // Palm
+        { x: 0.5, y: 0.5, z: 0 }
+      ],
+      handedness: 'right',
+      score: 1.0
+    },
+    lightning: {
+      timestamp: Date.now(),
+      landmarks: [
+        // Thumb
+        { x: 0.5, y: 0.5, z: 0 },
+        { x: 0.6, y: 0.5, z: 0 },
+        { x: 0.7, y: 0.5, z: 0 },
+        { x: 0.8, y: 0.5, z: 0 },
+        // Index
+        { x: 0.5, y: 0.5, z: 0 },
+        { x: 0.6, y: 0.4, z: 0 },
+        { x: 0.7, y: 0.3, z: 0 },
+        { x: 0.8, y: 0.2, z: 0 },
+        // Middle
+        { x: 0.5, y: 0.5, z: 0 },
+        { x: 0.6, y: 0.3, z: 0 },
+        { x: 0.7, y: 0.2, z: 0 },
+        { x: 0.8, y: 0.1, z: 0 },
+        // Ring
+        { x: 0.5, y: 0.5, z: 0 },
+        { x: 0.6, y: 0.2, z: 0 },
+        { x: 0.7, y: 0.1, z: 0 },
+        { x: 0.8, y: 0.0, z: 0 },
+        // Pinky
+        { x: 0.5, y: 0.5, z: 0 },
+        { x: 0.6, y: 0.1, z: 0 },
+        { x: 0.7, y: 0.0, z: 0 },
+        { x: 0.8, y: -0.1, z: 0 },
+        // Palm
+        { x: 0.5, y: 0.5, z: 0 }
+      ],
+      handedness: 'right',
+      score: 1.0
+    }
+  };
+
+  if (errorMessage) {
+    return (
+      <div style={{ 
+        padding: '20px', 
+        color: 'red',
+        background: 'rgba(255, 0, 0, 0.1)',
+        borderRadius: '8px',
+        margin: '20px',
+        maxWidth: '600px'
+      }}>
+        <h2>Error Initializing Gesture Detection</h2>
+        <p>{errorMessage}</p>
+        <p>Please try the following:</p>
+        <ul>
+          <li>Make sure your camera is properly connected and accessible</li>
+          <li>Check if another application is using your camera</li>
+          <li>Try refreshing the page</li>
+          <li>Check your browser's console (F12) for more details</li>
+        </ul>
+        <button 
+          onClick={() => {
+            setErrorMessage('');
+            setInitialized(false);
+            isInitializing.current = false;
+          }}
+          style={{
+            marginTop: '20px',
+            padding: '10px 20px',
+            background: '#4a90e2',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer'
+          }}
+        >
+          Try Again
+        </button>
+      </div>
+    );
+  }
+  
   return (
-    <div className="gesture-detection-demo">
+    <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
       <h2>Gesture Recognition Test</h2>
-      
-      {errorMessage && (
-        <div className="error-message">
-          <p>{errorMessage}</p>
-          <p>Make sure your browser supports WebGL and camera access is allowed.</p>
+      <div style={{ marginBottom: '20px', display: 'flex', gap: '10px' }}>
+        <button onClick={() => setShowIdealPositions(!showIdealPositions)}>
+          {showIdealPositions ? 'Hide' : 'Show'} Ideal Positions
+        </button>
+        <button onClick={() => setShowGuide(true)}>
+          Show Gesture Guide
+        </button>
+        </div>
+      {detector && (
+        <div style={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
+          <GestureVisualizer
+            detector={detector}
+            showStats={true}
+            gestures={testGestures}
+            onVideoReady={handleVideoReady}
+            style={{ width: '100%', maxWidth: '640px' }}
+          />
         </div>
       )}
-      
-      {!initialized && !errorMessage && (
-        <div className="loading">
-          <p>Initializing gesture recognition system...</p>
-          <p>This may take a few moments to load models...</p>
-        </div>
-      )}
-      
-      {initialized && detector && (
-        <div className="demo-content">
-          <div className="main-content">
-            <GestureVisualizer detector={detector} gestures={testGestures} />
-            
-            <div className="action-buttons">
-              <button 
-                className="toggle-guide-button"
-                onClick={() => setShowIdealPositions(!showIdealPositions)}
-              >
-                {showIdealPositions ? 'Hide Ideal Positions' : 'Show Ideal Positions'}
-              </button>
-            </div>
-            
-            {showIdealPositions && <GestureGuide />}
-          
-            <div className="gesture-guide">
-              <h3>Try these gestures:</h3>
-              <div className="gesture-list">
-                {testGestures.map(gesture => (
-                  <div className="gesture-card" key={gesture.id}>
-                    <h4>{gesture.name}</h4>
-                    <p>{gesture.description}</p>
-                    <p className="discipline">
-                      <strong>Discipline:</strong> {gesture.disciplineKey}
-                    </p>
-                  </div>
-                ))}
-              </div>
+      {!initialized && (
+        <div style={{ 
+          padding: '20px', 
+          background: '#f5f5f5', 
+          marginTop: '20px', 
+          borderRadius: '5px', 
+          width: '100%', 
+          maxWidth: '640px',
+          textAlign: 'center'
+        }}>
+          <h3>Initializing Gesture Detection...</h3>
+          <p>{initializationStep}</p>
+          <p>Please wait while we set up the camera and gesture recognition system.</p>
+          <div style={{ marginTop: '20px' }}>
+            <div style={{ 
+              width: '100%', 
+              height: '4px', 
+              background: '#ddd', 
+              borderRadius: '2px',
+              overflow: 'hidden'
+            }}>
+              <div style={{ 
+                width: '100%', 
+                height: '100%', 
+                background: '#4a90e2',
+                animation: 'loading 1s infinite linear'
+              }} />
             </div>
           </div>
         </div>
       )}
-      
-      <style jsx>{`
-        .gesture-detection-demo {
-          max-width: 1000px;
-          margin: 0 auto;
-          padding: 20px;
-        }
-        
-        h2 {
-          text-align: center;
-          margin-bottom: 30px;
-          color: #333;
-        }
-        
-        .loading, .error-message {
-          text-align: center;
-          padding: 40px;
-          background: #f5f5f5;
-          border-radius: 8px;
-          margin-bottom: 20px;
-        }
-        
-        .error-message {
-          background: #fff0f0;
-          border-left: 4px solid #ff3b30;
-          color: #d92626;
-        }
-        
-        .demo-content {
-          display: flex;
-          flex-direction: column;
-          gap: 20px;
-        }
-        
-        .main-content {
-          display: flex;
-          flex-direction: column;
-          gap: 20px;
-        }
-        
-        .action-buttons {
-          display: flex;
-          justify-content: center;
-          margin: 10px 0;
-        }
-        
-        .toggle-guide-button {
-          background: #4a90e2;
-          color: white;
-          border: none;
-          padding: 10px 20px;
-          border-radius: 4px;
-          font-weight: bold;
-          cursor: pointer;
-          transition: background-color 0.2s;
-        }
-        
-        .toggle-guide-button:hover {
-          background: #3a80d2;
-        }
-        
-        .gesture-guide {
-          background: #f0f7ff;
-          padding: 20px;
-          border-radius: 8px;
-        }
-        
-        .gesture-guide h3 {
-          margin-top: 0;
-          margin-bottom: 20px;
-          text-align: center;
-        }
-        
-        .gesture-list {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-          gap: 15px;
-        }
-        
-        .gesture-card {
-          background: white;
-          padding: 15px;
-          border-radius: 6px;
-          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        }
-        
-        .gesture-card h4 {
-          margin-top: 0;
-          margin-bottom: 10px;
-          color: #2c3e50;
-        }
-        
-        .gesture-card p {
-          margin: 5px 0;
-          font-size: 14px;
-        }
-        
-        .discipline {
-          font-size: 12px;
-          color: #666;
-          margin-top: 10px !important;
-        }
-        
-        @media (min-width: 768px) {
-          .demo-content {
-            flex-direction: row;
-            align-items: flex-start;
-          }
-          
-          .main-content {
-            flex: 1;
-            max-width: 100%;
-          }
-          
-          .gesture-guide {
-            flex: 1;
-            max-width: 300px;
-          }
+      {showGuide && <GestureGuide onClose={() => setShowGuide(false)} />}
+      <style>{`
+        @keyframes loading {
+          0% { transform: translateX(-100%); }
+          100% { transform: translateX(100%); }
         }
       `}</style>
     </div>

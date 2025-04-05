@@ -22,8 +22,10 @@ export enum MotionPattern {
   HORIZONTAL_LEFT_RIGHT = 'HORIZONTAL_LEFT_RIGHT',
   FORWARD_THRUST = 'FORWARD_THRUST',
   WAVE = 'WAVE',
-  TRIANGLE = 'TRIANGLE',
-  ZIG_ZAG = 'ZIG_ZAG'
+  ZIGZAG = 'ZIGZAG',           // New: For lightning
+  TWO_HAND_CLAP = 'TWO_HAND_CLAP', // New: For air
+  W_SHAPE = 'W_SHAPE',         // New: For water
+  V_SHAPE = 'V_SHAPE'          // New: For earth
 }
 
 // A single gesture definition (hand position)
