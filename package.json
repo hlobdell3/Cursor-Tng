@@ -1,29 +1,40 @@
 {
-  "name": "spell-casting-game",
-  "version": "0.1.0",
-  "private": true,
-  "dependencies": {
-    "@tensorflow/tfjs": "^4.10.0",
-    "@mediapipe/hands": "^0.4.1675469240",
-    "@tensorflow-models/hand-pose-detection": "^2.0.0",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "three": "^0.152.0",
-    "socket.io-client": "^4.6.1",
-    "uuid": "^9.0.0"
-  },
-  "devDependencies": {
-    "typescript": "^5.0.4",
-    "@types/react": "^18.2.0",
-    "@types/react-dom": "^18.2.0",
-    "@types/three": "^0.152.0",
-    "@types/uuid": "^9.0.1",
-    "vite": "^4.3.5",
-    "@vitejs/plugin-react": "^4.0.0"
-  },
+  "name": "hand-gesture-recognition-react",
+  "version": "1.0.0",
+  "description": "Real-time hand gesture recognition using React, TypeScript, TensorFlow.js and fingerpose",
+  "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "start": "npm run build && npm run preview"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "@tensorflow/tfjs": "^4.15.0",
+    "@tensorflow-models/handpose": "^0.0.7",
+    "fingerpose": "^0.1.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.43",
+    "@types/react-dom": "^18.2.17",
+    "@vitejs/plugin-react": "^4.2.1",
+    "typescript": "^5.2.2",
+    "vite": "^5.0.8"
+  },
+  "keywords": [
+    "react",
+    "typescript",
+    "tensorflow",
+    "handpose",
+    "gesture-recognition",
+    "computer-vision",
+    "vite"
+  ],
+  "author": "Hand Gesture Recognition React App",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
   }
 } 
