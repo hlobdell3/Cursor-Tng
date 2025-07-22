@@ -105,6 +105,59 @@ h1 {
   margin-bottom: 10px;
 }
 
+.controls {
+  display: flex;
+  gap: 15px;
+  justify-content: center;
+  align-items: center;
+  margin: 20px 0;
+  flex-wrap: wrap;
+}
+
+.control-btn {
+  padding: 12px 24px;
+  border: none;
+  border-radius: 25px;
+  font-size: 1em;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  background: #667eea;
+  color: white;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+}
+
+.control-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+}
+
+.control-btn:active {
+  transform: translateY(0);
+}
+
+.control-btn.clear-btn {
+  background: #e17055;
+  box-shadow: 0 4px 15px rgba(225, 112, 85, 0.3);
+}
+
+.control-btn.clear-btn:hover {
+  box-shadow: 0 6px 20px rgba(225, 112, 85, 0.4);
+}
+
+.control-btn:disabled {
+  background: #ddd;
+  color: #999;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.control-btn:disabled:hover {
+  transform: none;
+  box-shadow: none;
+}
+
 .instructions {
   background: rgba(255, 255, 255, 0.9);
   padding: 20px;

@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react'
 import * as tf from '@tensorflow/tfjs'
 import * as handpose from '@tensorflow-models/handpose'
-import * as fp from 'fingerpose'
 
 // Types
 interface HandPrediction {
@@ -12,70 +11,19 @@ interface HandPrediction {
   }
 }
 
-interface GestureConfig {
-  name: string
-  displayName: string
-  emoji: string
-  confidenceThreshold: number
+interface Point {
+  x: number
+  y: number
 }
-
-// Configuration
-const GESTURE_CONFIGS: Record<string, GestureConfig> = {
-  thumbs_up: {
-    name: 'thumbs_up',
-    displayName: 'Thumbs Up',
-    emoji: '👍',
-    confidenceThreshold: 9.0
-  },
-  victory: {
-    name: 'victory',
-    displayName: 'Victory',
-    emoji: '✌️',
-    confidenceThreshold: 9.0
-  },
-  thumbs_down: {
-    name: 'thumbs_down',
-    displayName: 'Thumbs Down',
-    emoji: '👎',
-    confidenceThreshold: 9.0
-  }
-}
-
-const HAND_CONNECTIONS = [
-  [0, 1], [1, 2], [2, 3], [3, 4], // thumb
-  [0, 5], [5, 6], [6, 7], [7, 8], // index finger
-  [0, 9], [9, 10], [10, 11], [11, 12], // middle finger
-  [0, 13], [13, 14], [14, 15], [15, 16], // ring finger
-  [0, 17], [17, 18], [18, 19], [19, 20], // pinky
-  [5, 9], [9, 13], [13, 17] // palm connections
-]
 
 const HandGestureRecognition: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [model, setModel] = useState<any>(null)
-  const [gestureEstimator, setGestureEstimator] = useState<any>(null)
   const [status, setStatus] = useState<string>('Loading models...')
-  const [currentGesture, setCurrentGesture] = useState<string>('Show your hand to detect gestures!')
   const [isDetecting, setIsDetecting] = useState<boolean>(false)
+  const [drawingPath, setDrawingPath] = useState<Point[]>([])
   const animationFrameRef = useRef<number>()
-
-  // Create thumbs down gesture
-  const createThumbsDownGesture = useCallback(() => {
-    const thumbsDownGesture = new fp.GestureDescription('thumbs_down')
-    
-    // Thumb pointing down
-    thumbsDownGesture.addCurl(fp.Finger.Thumb, fp.FingerCurl.NoCurl)
-    thumbsDownGesture.addDirection(fp.Finger.Thumb, fp.FingerDirection.VerticalDown, 1.0)
-    
-    // Other fingers curled
-    for (let finger of [fp.Finger.Index, fp.Finger.Middle, fp.Finger.Ring, fp.Finger.Pinky]) {
-      thumbsDownGesture.addCurl(finger, fp.FingerCurl.FullCurl, 1.0)
-      thumbsDownGesture.addCurl(finger, fp.FingerCurl.HalfCurl, 0.9)
-    }
-    
-    return thumbsDownGesture
-  }, [])
 
   // Initialize webcam
   const initWebcam = useCallback(async () => {
@@ -104,54 +52,48 @@ const HandGestureRecognition: React.FC = () => {
       const handposeModel = await handpose.load()
       setModel(handposeModel)
       
-      setStatus('Setting up gesture recognition...')
-      const knownGestures = [
-        fp.Gestures.VictoryGesture,
-        fp.Gestures.ThumbsUpGesture,
-        createThumbsDownGesture()
-      ]
-      const GE = new fp.GestureEstimator(knownGestures)
-      setGestureEstimator(GE)
-      
-      setStatus('Ready! Show your hand to detect gestures.')
+      setStatus('Ready! Point with your index finger to draw!')
       
     } catch (error) {
       console.error('Error loading models:', error)
       setStatus('Error: Failed to load models')
     }
-  }, [createThumbsDownGesture])
+  }, [])
 
-  // Draw hand landmarks
-  const drawHandLandmarks = useCallback((ctx: CanvasRenderingContext2D, landmarks: number[][]) => {
-    // Draw connections
-    ctx.strokeStyle = '#00ff00'
-    ctx.lineWidth = 2
+  // Draw the finger tracking path
+  const drawFingerPath = useCallback((ctx: CanvasRenderingContext2D, path: Point[]) => {
+    if (path.length < 2) return
+
+    ctx.strokeStyle = '#ff6b6b'
+    ctx.lineWidth = 4
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
     ctx.beginPath()
-    
-    HAND_CONNECTIONS.forEach(([startIdx, endIdx]) => {
-      const startPoint = landmarks[startIdx]
-      const endPoint = landmarks[endIdx]
-      
-      if (startPoint && endPoint) {
-        ctx.moveTo(startPoint[0], startPoint[1])
-        ctx.lineTo(endPoint[0], endPoint[1])
-      }
-    })
-    
+
+    // Draw the path
+    ctx.moveTo(path[0].x, path[0].y)
+    for (let i = 1; i < path.length; i++) {
+      ctx.lineTo(path[i].x, path[i].y)
+    }
     ctx.stroke()
-    
-    // Draw landmark points
-    ctx.fillStyle = '#ff0000'
-    landmarks.forEach((landmark) => {
+
+    // Draw dots at each point for better visibility
+    ctx.fillStyle = '#ff6b6b'
+    path.forEach(point => {
       ctx.beginPath()
-      ctx.arc(landmark[0], landmark[1], 3, 0, 2 * Math.PI)
+      ctx.arc(point.x, point.y, 2, 0, 2 * Math.PI)
       ctx.fill()
     })
   }, [])
 
+  // Clear the drawing path
+  const clearDrawing = useCallback(() => {
+    setDrawingPath([])
+  }, [])
+
   // Detection loop
   const detectGestures = useCallback(async () => {
-    if (!model || !gestureEstimator || !videoRef.current || !canvasRef.current) {
+    if (!model || !videoRef.current || !canvasRef.current) {
       return
     }
 
@@ -175,35 +117,47 @@ const HandGestureRecognition: React.FC = () => {
       if (predictions.length > 0) {
         const prediction = predictions[0]
         
-        // Draw hand landmarks
-        if (prediction.landmarks) {
-          drawHandLandmarks(ctx, prediction.landmarks)
-        }
+        // Track index finger for drawing
+        if (prediction.landmarks && prediction.landmarks[8]) {
+          const indexFingerTip = prediction.landmarks[8]
+          const currentPos: Point = { x: indexFingerTip[0], y: indexFingerTip[1] }
 
-        // Detect gestures
-        const gestureResult = gestureEstimator.estimate(prediction.landmarks, 9)
-        
-        if (gestureResult.gestures.length > 0) {
-          const bestGesture = gestureResult.gestures.reduce((prev: any, current: any) => 
-            prev.score > current.score ? prev : current
-          )
-
-          if (bestGesture.score > 9.0) {
-            const config = GESTURE_CONFIGS[bestGesture.name]
-            if (config) {
-              setCurrentGesture(`${config.emoji} ${config.displayName}`)
-            } else {
-              setCurrentGesture(bestGesture.name)
+          // Add to drawing path
+          setDrawingPath(prev => {
+            const lastPoint = prev[prev.length - 1]
+            if (!lastPoint) {
+              return [currentPos]
             }
-          } else {
-            setCurrentGesture('Hand detected - make a gesture!')
-          }
-        } else {
-          setCurrentGesture('Hand detected - make a gesture!')
+            
+            // Calculate distance from last position
+            const distance = Math.sqrt(
+              Math.pow(currentPos.x - lastPoint.x, 2) + 
+              Math.pow(currentPos.y - lastPoint.y, 2)
+            )
+
+            // Only add point if finger moved enough (reduces noise)
+            if (distance > 3) {
+              return [...prev, currentPos]
+            }
+            return prev
+          })
+
+          // Draw index finger tip highlight
+          ctx.strokeStyle = '#00ff00'
+          ctx.fillStyle = '#00ff00'
+          ctx.lineWidth = 3
+          ctx.beginPath()
+          ctx.arc(indexFingerTip[0], indexFingerTip[1], 8, 0, 2 * Math.PI)
+          ctx.stroke()
+          ctx.fill()
         }
-      } else {
-        setCurrentGesture('Show your hand to detect gestures!')
       }
+
+      // Always draw the existing path
+      if (drawingPath.length > 0) {
+        drawFingerPath(ctx, drawingPath)
+      }
+
     } catch (error) {
       console.error('Detection error:', error)
     }
@@ -211,14 +165,14 @@ const HandGestureRecognition: React.FC = () => {
     if (isDetecting) {
       animationFrameRef.current = requestAnimationFrame(detectGestures)
     }
-  }, [model, gestureEstimator, isDetecting, drawHandLandmarks])
+  }, [model, isDetecting, drawFingerPath, drawingPath])
 
   // Start detection
   const startDetection = useCallback(() => {
-    if (model && gestureEstimator && !isDetecting) {
+    if (model && !isDetecting) {
       setIsDetecting(true)
     }
-  }, [model, gestureEstimator, isDetecting])
+  }, [model, isDetecting])
 
   // Stop detection
   const stopDetection = useCallback(() => {
@@ -240,10 +194,10 @@ const HandGestureRecognition: React.FC = () => {
 
   // Start detection when models are ready
   useEffect(() => {
-    if (model && gestureEstimator) {
+    if (model) {
       startDetection()
     }
-  }, [model, gestureEstimator, startDetection])
+  }, [model, startDetection])
 
   // Run detection loop
   useEffect(() => {
@@ -261,8 +215,8 @@ const HandGestureRecognition: React.FC = () => {
   return (
     <div className="hand-gesture-app">
       <div className="container">
-        <h1>👋 Hand Gesture Recognition</h1>
-        <p className="subtitle">Real-time gesture detection using React, TypeScript & TensorFlow.js</p>
+        <h1>👆 Index Finger Tracker</h1>
+        <p className="subtitle">Draw with your index finger using hand tracking</p>
         
         <div className="video-container">
           <video 
@@ -284,21 +238,28 @@ const HandGestureRecognition: React.FC = () => {
           </div>
         </div>
         
-        <div className="gesture-display">
-          <div className="gesture-text">{currentGesture}</div>
+        <div className="controls">
+          <button 
+            onClick={clearDrawing}
+            className="control-btn clear-btn"
+            disabled={drawingPath.length === 0}
+          >
+            🗑️ Clear Drawing ({drawingPath.length} points)
+          </button>
         </div>
         
         <div className="instructions">
-          <h3>🎯 Supported Gestures:</h3>
+          <h3>🎯 How to Use:</h3>
           <ul>
-            <li><strong>👍 Thumbs Up:</strong> Point your thumb upward with other fingers curled</li>
-            <li><strong>✌️ Victory:</strong> Extend index and middle fingers in a V-shape</li>
-            <li><strong>👎 Thumbs Down:</strong> Point your thumb downward with other fingers curled</li>
+            <li><strong>👆 Point:</strong> Extend your index finger and move it around to draw</li>
+            <li><strong>🎨 Draw:</strong> The red line follows wherever your index finger tip goes</li>
+            <li><strong>🟢 Green dot:</strong> Shows your current index finger position</li>
+            <li><strong>🗑️ Clear:</strong> Use the button to erase your drawing</li>
           </ul>
         </div>
         
         <div className="footer">
-          <p>Built with React, TypeScript, TensorFlow.js & Fingerpose</p>
+          <p>Built with React, TypeScript & TensorFlow.js HandPose</p>
         </div>
       </div>
     </div>
